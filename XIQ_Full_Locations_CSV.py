@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-from typing import Type
 import requests
 import json
 import sys
 import getpass
 import pandas as pd
-import numpy as np
-from pprint import pprint
 from requests.exceptions import HTTPError
 
 BASEURL = "https://api.extremecloudiq.com"
@@ -221,7 +218,7 @@ def main():
         glob_id = dfapi.loc[filt, 'id'].values[0]
         glob_name = dfapi.loc[filt, 'name'].values[0]
         data = v
-    #print(dfapi)
+   #print(dfapi)
 
     for index, row in dfcsv.iterrows():
         #print(row)
@@ -334,7 +331,7 @@ def main():
                 continue
             dfapi = dfapi.append({'id':build_id,'name':row['building_name'], 'type':'BUILDING', 'parent': row['loc_name']}, ignore_index=True)
 
-        
+        createFloor = True
         # Check if floor exists in building, create if not
         if row['floor_name'] in dfapi['name'].values:
             flr_filt = (dfapi['name'] == row['floor_name']) & (dfapi['type'] == 'FLOOR') & (dfapi['parent'] == row['building_name'])
@@ -343,8 +340,9 @@ def main():
                 sys.stdout.write(YELLOW)
                 print(f"Floor {row['floor_name']} already exists in {row['building_name']}")
                 sys.stdout.write(RESET)
+                createFloor = True
                 continue
-        else:
+        if createFloor:
             # Create Floor
             floor_payload = json.dumps(
                 {
@@ -359,7 +357,7 @@ def main():
                     "map_name": row['map_name']
                 }
             )
-            print(floor_payload)
+            #print(floor_payload)
             print(f"create Floor {row['floor_name']}")
             try:
                 floor_id = CreateFloor(floor_payload)
@@ -382,7 +380,7 @@ def main():
                 print(f"Failed creating Floor on row {str(index)}. Attempting next row.")
                 continue
             dfapi = dfapi.append({'id':floor_id,'name':row['floor_name'], 'type':'FLOOR', 'parent': row['building_name']}, ignore_index=True)
-        
+    
         
 
 
