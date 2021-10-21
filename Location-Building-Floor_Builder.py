@@ -49,6 +49,7 @@ device_list = []
 location_tree = []
 loc_id = {}
 dfapi = pd.DataFrame(columns = ['id', 'name', 'type'])
+def_columns =["loc_name","sub_loc_1_name(if necessary)","sub_loc_2_name(if necessary)","building_name","address","floor_name","environment","attenuation","measurement","height","map_width","map_height","map_name"]
 
 # Git Shell Coloring - https://gist.github.com/vratiu/9780109
 RED   = "\033[1;31m"  
@@ -212,6 +213,10 @@ def main():
         raise SystemExit
     GetLocationTree()
     dfcsv = pd.read_csv(filename)
+    columns = list(dfcsv.columns)
+    if columns != def_columns:
+        print("The columns in the csv file have been edited. Please use correct column names.")
+        raise SystemExit
     dfcsv['map_name'] = dfcsv['map_name'].fillna('')
     for k,v in (location_tree[0]['Global'][0]).items():
         filt = (dfapi['name'] == k)
@@ -221,22 +226,23 @@ def main():
    #print(dfapi)
 
     for index, row in dfcsv.iterrows():
+        rownum = index + 2
         #print(row)
         sys.stdout.write(BLUE)
-        print(f"\nStarting row {index}")
+        print(f"\nStarting row {rownum}")
         sys.stdout.write(RESET)
         if pd.isnull(dfcsv.loc[index,'loc_name']):
             sys.stdout.write(RED)
-            print("There is no location defined in row " + str(index))
+            print("There is no location defined in row " + str(rownum))
             sys.stdout.write(RESET)
-            print(f"Skipping row {str(index)}")
+            print(f"Skipping row {str(rownum)}")
             continue
         # Check if location exists, create if not
         if row['loc_name'] in dfapi['name'].values:
             loc_filt = (dfapi['name'] == row['loc_name']) & (dfapi['type'] == 'Location')
             loc_id = dfapi.loc[loc_filt, 'id']
             if not loc_id.empty:
-                print(f"Location {row['loc_name']} already exists... Attemping Building")
+                print(f"Location {row['loc_name']} already exists...")
                 loc_id = loc_id.values[0]
             else:
                 loc_filt = (dfapi['name'] == row['loc_name'])
@@ -244,7 +250,7 @@ def main():
                 sys.stdout.write(RED)
                 print(f"{row['loc_name']} Location was found but is defined as a {loc_type}")
                 sys.stdout.write(RESET)
-                print(f"Skipping row {str(index)}")
+                print(f"Skipping row {str(rownum)}")
                 continue
         else:
             # Create Location
@@ -260,37 +266,103 @@ def main():
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping line {str(index)}")
+                print(f"Skipping line {str(rownum)}")
                 continue
             except TypeError as e:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping line {str(index)}")
+                print(f"Skipping line {str(rownum)}")
                 continue
             except:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping line {str(index)}")
+                print(f"Skipping line {str(rownum)}")
                 continue
             dfapi = dfapi.append({'id':loc_id,'name':row['loc_name'], 'type':'Location', 'parent': glob_name }, ignore_index=True)
 
-        
+
+        # Check for Sub locations in csv file - if not move on to buildings
+        parent_name = row['loc_name']
+        skiprow = False
+        for sub_loc in 'sub_loc_1_name(if necessary)','sub_loc_2_name(if necessary)':
+            if pd.notnull(dfcsv.loc[index,sub_loc]):
+                print(f"Checking Sub Location {row[sub_loc]}")
+                # Check if location exists, create if not
+                if row[sub_loc] in dfapi['name'].values:
+                    sub_loc_filt = (dfapi['name'] == row[sub_loc]) & (dfapi['type'] == 'Location')
+                    sub_loc_id = dfapi.loc[sub_loc_filt, 'id']
+                    real_parent_name = dfapi.loc[sub_loc_filt, "parent"].values[0]
+                    if not sub_loc_id.empty:
+                        if real_parent_name == parent_name:
+                            print(f"Location {row[sub_loc]} already exists...")
+                            parent_name = row[sub_loc]
+                            loc_id = sub_loc_id.values[0]
+                        else:
+                            sys.stdout.write(RED)
+                            print(f"Location {row[sub_loc]} exists under Location {real_parent_name} CSV has it under {parent_name}")
+                            sys.stdout.write(RESET)
+                            skiprow = True
+                            break
+                    else:
+                        sub_loc_filt = (dfapi['name'] == row[sub_loc])
+                        sub_loc_type = dfapi.loc[sub_loc_filt, 'type'].values[0]
+                        sys.stdout.write(RED)
+                        print(f"{row[sub_loc]} Location was found but is defined as a {sub_loc_type}")
+                        sys.stdout.write(RESET)
+                        skiprow = True
+                        break
+                else:
+                    # Create Location
+                    location_payload = json.dumps(
+                        {"parent_id": loc_id,
+                         "name": row[sub_loc],
+                         "address": row['address']}
+                    )
+                    print(f"create Location {row[sub_loc]} under {parent_name}")
+                    try:
+                        loc_id = CreateLocation(location_payload)
+                        parent_name = row[sub_loc]
+                    except HTTPError as e:
+                        sys.stdout.write(RED)
+                        print(e)
+                        sys.stdout.write(RESET)
+                        skiprow = True
+                        break
+                    except TypeError as e:
+                        sys.stdout.write(RED)
+                        print(e)
+                        sys.stdout.write(RESET)
+                        skiprow = True
+                        break
+                    except:
+                        sys.stdout.write(RED)
+                        print(e)
+                        sys.stdout.write(RESET)
+                        skiprow = True
+                        break
+                    dfapi = dfapi.append({'id':loc_id,'name':row['loc_name'], 'type':'Location', 'parent': parent_name }, ignore_index=True)
+
+        if skiprow:
+            print(f"Skipping line {str(rownum)}")
+            continue
+
         # Check if build exists, create if not
+        print("Attemping Building")
         if row['building_name'] in dfapi['name'].values:
             build_filt = (dfapi['name'] == row['building_name']) & (dfapi['type'] == 'BUILDING')
             build_id = dfapi.loc[build_filt, 'id']
             build_prt = dfapi.loc[build_filt, 'parent']
             
             if not build_id.empty:
-                if build_prt.values[0] == row['loc_name']:
+                if build_prt.values[0] == parent_name:
                     print(f"Building {row['building_name']} already exists in {build_prt.values[0]}... Attemping Floor")
                 else:
                     sys.stdout.write(RED)
-                    print(f"\nBuilding {row['building_name']} was found in {build_prt.values[0]} instead of {row['loc_name']}!!!")
+                    print(f"\nBuilding {row['building_name']} was found in {build_prt.values[0]} instead of {parent_name}!!!")
                     sys.stdout.write(RESET)
-                    print(f"Skipping rest of the row {str(index)}\n")
+                    print(f"Skipping rest of the row {str(rownum)}\n")
                     continue
                 build_id = build_id.values[0]
             else:
@@ -299,7 +371,7 @@ def main():
                 build_type = dfapi.loc[build_filt, 'type'].values[0]
                 print(f"{row['building_name']} Building was found but is defined as a {build_type}")
                 sys.stdout.write(RESET)
-                print(f"Skipping the rest of the row {str(index)}")
+                print(f"Skipping the rest of the row {str(rownum)}")
                 continue
         else:
             # Create Building
@@ -315,21 +387,21 @@ def main():
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping the rest of the row {str(index)}")
+                print(f"Skipping the rest of the row {str(rownum)}")
                 continue
             except TypeError as e:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping the rest of the row {str(index)}")
+                print(f"Skipping the rest of the row {str(rownum)}")
                 continue
             except:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Skipping the rest of the row {str(index)}")
+                print(f"Skipping the rest of the row {str(rownum)}")
                 continue
-            dfapi = dfapi.append({'id':build_id,'name':row['building_name'], 'type':'BUILDING', 'parent': row['loc_name']}, ignore_index=True)
+            dfapi = dfapi.append({'id':build_id,'name':row['building_name'], 'type':'BUILDING', 'parent': parent_name}, ignore_index=True)
 
         createFloor = True
         # Check if floor exists in building, create if not
@@ -365,23 +437,23 @@ def main():
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Failed creating Floor on row {str(index)}. Attempting next row.")
+                print(f"Failed creating Floor on row {str(rownum)}. Attempting next row.")
                 continue
             except TypeError as e:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Failed creating Floor on row {str(index)}. Attempting next row.")
+                print(f"Failed creating Floor on row {str(rownum)}. Attempting next row.")
                 continue
             except:
                 sys.stdout.write(RED)
                 print(e)
                 sys.stdout.write(RESET)
-                print(f"Failed creating Floor on row {str(index)}. Attempting next row.")
+                print(f"Failed creating Floor on row {str(rownum)}. Attempting next row.")
                 continue
             dfapi = dfapi.append({'id':floor_id,'name':row['floor_name'], 'type':'FLOOR', 'parent': row['building_name']}, ignore_index=True)
     
-        
+    #print(dfapi)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,5 @@
+loc_name,sub_loc_1_name(if necessary),sub_loc_2_name(if necessary),building_name,address,floor_name,environment,attenuation,measurement,height,map_width,map_height,map_name
+Location1,,,Loc1Bldg1,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 1,RF_ENVIRONMENT_TYPE_OFFICE,15,MEASUREMENT_UNIT_FEET,9,50,50,
+Location1,,,Loc1Bldg1,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 2,RF_ENVIRONMENT_TYPE_OFFICE,15,MEASUREMENT_UNIT_FEET,9,50,50,
+Location1,,,Loc1Bldg2,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 1,RF_ENVIRONMENT_TYPE_OFFICE,15,MEASUREMENT_UNIT_FEET,9,500,386.33,Casino Floor_v3.png
+Location2,,,Loc2Bldg1,1010 J Street Modesto CA,Floor 1,RF_ENVIRONMENT_TYPE_OFFICE,15,MEASUREMENT_UNIT_FEET,9,50,50,
