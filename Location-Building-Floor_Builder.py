@@ -218,7 +218,7 @@ def main():
         print("The columns in the csv file have been edited. Please use correct column names.")
         raise SystemExit
     dfcsv['map_name'] = dfcsv['map_name'].fillna('')
-    dfcsv['address'] = dfcsv['address'].fillna('')
+    dfcsv['address'] = dfcsv['address'].fillna('Unknown address')
     for k,v in (location_tree[0]['Global'][0]).items():
         filt = (dfapi['name'] == k)
         glob_id = dfapi.loc[filt, 'id'].values[0]
@@ -382,6 +382,7 @@ def main():
                  "address": row['address']}
             )
             print(f"creating Building {row['building_name']}")
+            print(building_payload)
             try:
                 build_id = CreateBuilding(building_payload)
             except HTTPError as e:
