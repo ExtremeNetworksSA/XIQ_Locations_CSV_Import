@@ -111,7 +111,7 @@ def GetLocationTree():
 def BuildLocationDic(location, pdict = {'Global': []}, pname = 'Global'):
     global dfapi
     #print(location['name'])
-    if location['parent_id'] == None:
+    if 'parent_id' not in location:
         dfapi = dfapi.append({'id': location['id'], 'name':location['name'], 'type': 'Global', 'parent':pname}, ignore_index=True)
     else:
         dfapi = dfapi.append({'id': location['id'], 'name':location['name'], 'type': location['type'],'parent':pname}, ignore_index=True)     
