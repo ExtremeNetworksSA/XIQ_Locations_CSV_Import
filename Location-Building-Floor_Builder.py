@@ -232,85 +232,40 @@ def main():
         sys.stdout.write(BLUE)
         print(f"\nStarting row {rownum}")
         sys.stdout.write(RESET)
-        if pd.isnull(dfcsv.loc[index,'loc_name']):
+        if pd.isnull(dfcsv.loc[index,'site_name']):
             sys.stdout.write(RED)
-            print("There is no location defined in row " + str(rownum))
+            print("There is no site defined in row " + str(rownum))
             sys.stdout.write(RESET)
             print(f"Skipping row {str(rownum)}")
             continue
-        # Check if location exists, create if not
-        if row['loc_name'] in dfapi['name'].values:
-            loc_filt = (dfapi['name'] == row['loc_name']) & (dfapi['type'] == 'Location')
-            loc_id = dfapi.loc[loc_filt, 'id']
-            if not loc_id.empty:
-                print(f"Location {row['loc_name']} already exists...")
-                loc_id = loc_id.values[0]
-            else:
-                loc_filt = (dfapi['name'] == row['loc_name'])
-                loc_type = dfapi.loc[loc_filt, 'type'].values[0]
-                sys.stdout.write(RED)
-                print(f"{row['loc_name']} Location was found but is defined as a {loc_type}")
-                sys.stdout.write(RESET)
-                print(f"Skipping row {str(rownum)}")
-                continue
-        else:
-            # Create Location
-            location_payload = json.dumps(
-                {"parent_id": glob_id,
-                 "name": row['loc_name'],
-                 "address": row['address']}
-            )
-            print(f"create Location {row['loc_name']}")
-            try:
-                loc_id = CreateLocation(location_payload)
-            except HTTPError as e:
-                sys.stdout.write(RED)
-                print(e)
-                sys.stdout.write(RESET)
-                print(f"Skipping line {str(rownum)}")
-                continue
-            except TypeError as e:
-                sys.stdout.write(RED)
-                print(e)
-                sys.stdout.write(RESET)
-                print(f"Skipping line {str(rownum)}")
-                continue
-            except:
-                sys.stdout.write(RED)
-                print(e)
-                sys.stdout.write(RESET)
-                print(f"Skipping line {str(rownum)}")
-                continue
-            dfapi = dfapi.append({'id':loc_id,'name':row['loc_name'], 'type':'Location', 'parent': glob_name }, ignore_index=True)
 
-
-        # Check for Sub locations in csv file - if not move on to buildings
-        parent_name = row['loc_name']
+        # Check for Site Groups in csv file - if not move on to site #TODO - 
+        parent_name = 'Global' #TODO - Not sure this is right... It may be the name defined in XIQ so would need to look it up by 'type' == Global
         skiprow = False
-        for sub_loc in 'sub_loc_1_name(if necessary)','sub_loc_2_name(if necessary)':
-            if pd.notnull(dfcsv.loc[index,sub_loc]):
-                print(f"Checking Sub Location {row[sub_loc]}")
+        for site_group in 'site_group_1_name(if necessary)','site_group_2_name(if necessary)':
+            if pd.notnull(dfcsv.loc[index,site_group]):
+                print(f"Checking Site Group {row[site_group]}")
                 # Check if location exists, create if not
-                if row[sub_loc] in dfapi['name'].values:
-                    sub_loc_filt = (dfapi['name'] == row[sub_loc]) & (dfapi['type'] == 'Location')
-                    sub_loc_id = dfapi.loc[sub_loc_filt, 'id']
-                    real_parent_name = dfapi.loc[sub_loc_filt, "parent"].values[0]
-                    if not sub_loc_id.empty:
+                if row[site_group] in dfapi['name'].values:
+                    site_group_filt = (dfapi['name'] == row[site_group]) & (dfapi['type'] == 'Generic')
+                    site_group_id = dfapi.loc[site_group_filt, 'id']
+                    real_parent_name = dfapi.loc[site_group_filt, "parent"].values[0]
+                    if not site_group_id.empty:
                         if real_parent_name == parent_name:
-                            print(f"Location {row[sub_loc]} already exists...")
-                            parent_name = row[sub_loc]
-                            loc_id = sub_loc_id.values[0]
+                            print(f"Site Group {row[site_group]} already exists...")
+                            parent_name = row[site_group]
+                            loc_id = site_group_id.values[0]
                         else:
                             sys.stdout.write(RED)
-                            print(f"Location {row[sub_loc]} exists under Location {real_parent_name} CSV has it under {parent_name}")
+                            print(f"Site Group {row[site_group]} exists under {real_parent_name} CSV has it under {parent_name}")
                             sys.stdout.write(RESET)
                             skiprow = True
                             break
-                    else:
-                        sub_loc_filt = (dfapi['name'] == row[sub_loc])
-                        sub_loc_type = dfapi.loc[sub_loc_filt, 'type'].values[0]
+                    else:   #TODO - need to check if Site group names must be unique, if they can be the same as sites,buildings, or floors
+                        site_group_filt = (dfapi['name'] == row[site_group])
+                        site_group_type = dfapi.loc[site_group_filt, 'type'].values[0]
                         sys.stdout.write(RED)
-                        print(f"{row[sub_loc]} Location was found but is defined as a {sub_loc_type}")
+                        print(f"Site Group {row[site_group]} was found but is defined as a {site_group_type}")
                         sys.stdout.write(RESET)
                         skiprow = True
                         break
@@ -318,13 +273,13 @@ def main():
                     # Create Location
                     location_payload = json.dumps(
                         {"parent_id": loc_id,
-                         "name": row[sub_loc],
+                         "name": row[site_group],
                          "address": row['address']}
                     )
-                    print(f"create Location {row[sub_loc]} under {parent_name}")
+                    print(f"create Site Group {row[site_group]} under {parent_name}")
                     try:
-                        loc_id = CreateLocation(location_payload)
-                        parent_name = row[sub_loc]
+                        loc_id = CreateLocation(location_payload) # TODO change name?
+                        parent_name = row[site_group]
                     except HTTPError as e:
                         sys.stdout.write(RED)
                         print(e)
@@ -343,11 +298,57 @@ def main():
                         sys.stdout.write(RESET)
                         skiprow = True
                         break
-                    dfapi = dfapi.append({'id':loc_id,'name':row['loc_name'], 'type':'Location', 'parent': parent_name }, ignore_index=True)
+                    dfapi = dfapi.append({'id':loc_id,'name':row['loc_name'], 'type':'Generic', 'parent': parent_name }, ignore_index=True) #TODO - what does the type need to be set to for site group
 
+        # Skip the row if Site Groups are incorrect
         if skiprow:
             print(f"Skipping line {str(rownum)}")
             continue
+
+        # Check if location exists, create if not
+        if row['site_name'] in dfapi['name'].values:
+            site_filt = (dfapi['name'] == row['site_name']) & (dfapi['type'] == 'Site') #FIX - is type 'Site'?
+            site_id = dfapi.loc[site_filt, 'id']
+            if not site_id.empty:
+                print(f"Site {row['site_name']} already exists...")
+                site_id = site_id.values[0]
+            else:
+                site_filt = (dfapi['name'] == row['site_name'])
+                loc_type = dfapi.loc[site_filt, 'type'].values[0]
+                sys.stdout.write(RED)
+                print(f"{row['site_name']} Site was found but is defined as a {loc_type}")
+                sys.stdout.write(RESET)
+                print(f"Skipping row {str(rownum)}")
+                continue
+        else:
+            # Create Location
+            location_payload = json.dumps(
+                {"parent_id": glob_id, #TODO need to get id of site group or global id
+                 "name": row['site_name'],
+                 "address": row['address']}
+            )
+            print(f"Create Site {row['site_name']}")
+            try:
+                loc_id = CreateLocation(location_payload) # TODO change name?
+            except HTTPError as e:
+                sys.stdout.write(RED)
+                print(e)
+                sys.stdout.write(RESET)
+                print(f"Skipping line {str(rownum)}")
+                continue
+            except TypeError as e:
+                sys.stdout.write(RED)
+                print(e)
+                sys.stdout.write(RESET)
+                print(f"Skipping line {str(rownum)}")
+                continue
+            except:
+                sys.stdout.write(RED)
+                print(e)
+                sys.stdout.write(RESET)
+                print(f"Skipping line {str(rownum)}")
+                continue
+            dfapi = dfapi.append({'id':loc_id,'name':row['site_name'], 'type':'Location', 'parent': glob_name }, ignore_index=True) #TODO - need to get name of site group or global name
 
         # Check if build exists, create if not
         print("Attemping Building")

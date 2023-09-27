@@ -1,4 +1,4 @@
-site_group_1_name(if necessary),site_group_2_name(if necessary),loc_name,building_name,address,floor_name,environment,attenuation,measurement,height,map_width,map_height,map_name
+site_group_1_name(if necessary),site_group_2_name(if necessary),site_name,building_name,address,floor_name,environment,attenuation,measurement,height,map_width,map_height,map_name
 ,,Site1,Site1Bldg1,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 1,OFFICE,15,FEET,9,50,50,
 ,,Site1,Site1Bldg1,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 2,OFFICE,15,FEET,9,50,50,
 ,,Site1,Site1Bldg2,3988 Las Vegas Blvd Las Vegas NV 89119,Floor 1,OFFICE,15,FEET,9,500,386.33,Casino Floor_v3.png
