@@ -49,7 +49,7 @@ device_list = []
 location_tree = []
 loc_id = {}
 dfapi = pd.DataFrame(columns = ['id', 'name', 'type'])
-def_columns =["loc_name","sub_loc_1_name(if necessary)","sub_loc_2_name(if necessary)","building_name","address","floor_name","environment","attenuation","measurement","height","map_width","map_height","map_name"]
+def_columns =["site_group_1_name(if necessary)","site_group_2_name(if necessary)","site_name","building_name","address","floor_name","environment","attenuation","measurement","height","map_width","map_height","map_name"]
 
 # Git Shell Coloring - https://gist.github.com/vratiu/9780109
 RED   = "\033[1;31m"  
