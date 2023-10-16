@@ -240,7 +240,6 @@ def main():
         # Check for Site Groups in csv file - if not move on to site
         parent_name = glob_name
         parent_id = glob_id
-        print(f"Row {index} - {parent_name}") # TODO Remove this line
         skiprow = False
         for site_group in 'site_group_1_name(if necessary)','site_group_2_name(if necessary)':
             print(row[site_group])
@@ -328,14 +327,15 @@ def main():
                 continue
         else:
             # Create site
-            location_payload = json.dumps(
+            site_payload = json.dumps(
                 {"parent_id": parent_id, 
                  "name": row['site_name'],
                  "address": row['address']}
             )
             print(f"Create Site {row['site_name']}")
+            print(site_payload)
             try:
-                parent_id = CreateLocation(location_payload, site=True)
+                site_id = CreateLocation(site_payload, site=True)
             except HTTPError as e:
                 sys.stdout.write(RED)
                 print(e)
@@ -354,7 +354,7 @@ def main():
                 sys.stdout.write(RESET)
                 print(f"Skipping line {str(rownum)}")
                 continue
-            temp_df = pd.DataFrame([{'id': parent_id, 'name':row['loc_name'], 'type': 'SITE', 'parent':parent_name}])
+            temp_df = pd.DataFrame([{'id': site_id, 'name':row['site_name'], 'type': 'SITE', 'parent':parent_name}])
             dfapi = pd.concat([dfapi, temp_df], ignore_index=True) 
 
         # Check if build exists, create if not
@@ -367,7 +367,7 @@ def main():
             if not build_id.empty:
                 if build_prt.values[0] == parent_name:
                     sys.stdout.write(YELLOW)
-                    print(f"Building {row['building_name']} already exists in {build_prt.values[0]}... Attemping Floor")
+                    print(f"Building {row['building_name']} already exists in {build_prt.values[0]}... Attempting Floor")
                     sys.stdout.write(RESET)
                 else:
                     sys.stdout.write(RED)
@@ -387,7 +387,7 @@ def main():
         else:
             # Create Building
             building_payload = json.dumps(
-                {"parent_id": parent_id,
+                {"parent_id": site_id,
                  "name": row['building_name'],
                  "address": row['address']}
             )
