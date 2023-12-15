@@ -47,7 +47,7 @@ totalretries = 5 #Value can be adjusted - this will adjust how many attempts to 
 
 device_list = []
 dfapi = pd.DataFrame(columns = ['id', 'name', 'type', 'parent'])
-def_columns =["site_group_1_name(if necessary)","site_group_2_name(if necessary)","site_name","building_name","address","floor_name","environment","attenuation","measurement","height","map_width","map_height","map_name"]
+def_columns =["site_group_1_name(if necessary)","site_group_2_name(if necessary)","site_name","building_name","address","city","state","postal_code","country_code","floor_name","environment","attenuation","measurement","height","map_width","map_height","map_name(if available)"]
 
 # Git Shell Coloring - https://gist.github.com/vratiu/9780109
 RED   = "\033[1;31m"  
@@ -120,7 +120,30 @@ def BuildLocationDic(location, pname = 'Global'):
             for child in location['children']:
                 BuildLocationDic(child, pname=parent_name)
 
-def CreateLocation(payload, site=False): # TODO - check logic of sites
+def CheckCountryCode(country_code):
+    url = BASEURL + "/countries/" + str(country_code) + "/:validate"
+    try:
+        response = requests.get(url, headers=HEADERS, verify=True)
+    except HTTPError as http_err:
+        raise HTTPError (f'HTTP error occurred: {http_err} - on API {url}')  
+    except Exception as err:
+        raise TypeError(f'Other error occurred: {err}: on API {url}')
+    else:
+        if response is None:
+            log_msg = "Error Checking Country Code in XIQ - no response!"
+            raise TypeError(log_msg)
+        if response.status_code != 200:
+            log_msg = f"Error Checking Country Code in XIQ - HTTP Status Code: {str(response.status_code)}"
+            try:
+                rawList = response.json()
+                log_msg += json.dumps(rawList)
+                raise TypeError(log_msg)
+            except:
+                raise TypeError(log_msg)  
+
+    return response.text
+
+def CreateLocation(payload, site=False):
     #print("Trying to create the new  Site Group")
     if site:
         url = BASEURL + "/locations/site"
@@ -217,8 +240,9 @@ def main():
     if columns != def_columns:
         print("The columns in the csv file have been edited. Please use correct column names.")
         raise SystemExit
-    dfcsv['map_name'] = dfcsv['map_name'].fillna('')
-    dfcsv['address'] = dfcsv['address'].fillna('Unknown address')
+    dfcsv['map_name(if available)'] = dfcsv['map_name(if available)'].fillna('')
+    dfcsv['site_group_1_name(if necessary)'] = dfcsv['site_group_1_name(if necessary)'].fillna('')
+    dfcsv['site_group_2_name(if necessary)'] = dfcsv['site_group_2_name(if necessary)'].fillna('')
     filt = dfapi['type'] == 'Global'
     glob_id = dfapi.loc[filt, 'id'].values[0]
     glob_name = dfapi.loc[filt, 'name'].values[0]
@@ -230,20 +254,34 @@ def main():
         sys.stdout.write(BLUE)
         print(f"\nStarting row {rownum}")
         sys.stdout.write(RESET)
-        if pd.isnull(dfcsv.loc[index,'site_name']):
+        # Check for Site Groups in csv file - if not move on to site
+        if row.isnull().values.any():
+            missing = []
+            for index,frame in row.isnull().items():
+                if frame:
+                    missing.append(index)
             sys.stdout.write(RED)
-            print("There is no site defined in row " + str(rownum))
+            print("Row " + str(rownum) + " is missing the following elements: " + ", ".join(missing))
             sys.stdout.write(RESET)
             print(f"Skipping row {str(rownum)}")
             continue
-
-        # Check for Site Groups in csv file - if not move on to site
+        
+        # Validate Country Code
+        cc_response = CheckCountryCode(row['country_code'])
+        if cc_response == 'false':
+            sys.stdout.write(RED)
+            print("Could not validate the Country Code for row "  + str(rownum))
+            sys.stdout.write(RESET)
+            print(f"Skipping row {str(rownum)}")
+            continue
+            
+    
         parent_name = glob_name
         parent_id = glob_id
         skiprow = False
         for site_group in 'site_group_1_name(if necessary)','site_group_2_name(if necessary)':
-            print(row[site_group])
-            if pd.notnull(dfcsv.loc[index,site_group]):
+            if dfcsv.loc[index,site_group]:
+                print(row[site_group])
                 print(f"Checking Site Group {row[site_group]}")
                 # Check if location exists, create if not
                 if row[site_group] in dfapi['name'].values:
@@ -263,7 +301,7 @@ def main():
                             sys.stdout.write(RESET)
                             skiprow = True
                             break
-                    else:   #TODO - need to check if Site group names must be unique, if they can be the same as sites,buildings, or floors
+                    else: 
                         site_group_filt = (dfapi['name'] == row[site_group])
                         site_group_type = dfapi.loc[site_group_filt, 'type'].values[0]
                         sys.stdout.write(RED)
@@ -275,8 +313,7 @@ def main():
                     # Create Location
                     location_payload = json.dumps(
                         {"parent_id": parent_id,
-                         "name": row[site_group],
-                         "address": row['address']}
+                         "name": row[site_group]}
                     )
                     print(f"create Site Group {row[site_group]} under {parent_name}")
                     try:
@@ -330,7 +367,14 @@ def main():
             site_payload = json.dumps(
                 {"parent_id": parent_id, 
                  "name": row['site_name'],
-                 "address": row['address']}
+                 "address": {
+                   "address": row['address'],
+                   "city": row['city'],
+                   "state": row['state'],
+                   "postal_code": str(int(row['postal_code']))
+                 },
+                 "country_code": row['country_code']
+                }
             )
             print(f"Create Site {row['site_name']}")
             print(site_payload)
@@ -386,11 +430,16 @@ def main():
                 continue
         else:
             # Create Building
-            building_payload = json.dumps(
-                {"parent_id": site_id,
-                 "name": row['building_name'],
-                 "address": row['address']}
-            )
+            building_payload = json.dumps({
+                "parent_id": site_id,
+                "name": row['building_name'],
+                "address": {
+                    "address": row['address'],
+                    "city": row['city'],
+                    "state": row['state'],
+                    "postal_code": str(int(row['postal_code']))
+                }
+            })
             print(f"creating Building {row['building_name']}")
             print(building_payload)
             try:
@@ -413,7 +462,8 @@ def main():
                 sys.stdout.write(RESET)
                 print(f"Skipping the rest of the row {str(rownum)}")
                 continue
-            dfapi = dfapi.append({'id':build_id,'name':row['building_name'], 'type':'BUILDING', 'parent': parent_name}, ignore_index=True)
+            temp_df = pd.DataFrame([{'id': build_id, 'name':row['building_name'], 'type': 'BUILDING', 'parent':parent_name}])
+            dfapi = pd.concat([dfapi, temp_df], ignore_index=True) 
 
         createFloor = True
         # Check if floor exists in building, create if not
@@ -428,8 +478,7 @@ def main():
                 continue
         if createFloor:
             # Create Floor
-            floor_payload = json.dumps(
-                {
+            data = {
                     "parent_id": build_id,
                     "name": row['floor_name'],
                     "environment": row["environment"],
@@ -437,10 +486,11 @@ def main():
                     "measurement_unit": row['measurement'],
                     "installation_height": row['height'],
                     "map_size_width": row['map_width'],
-                    "map_size_height": row['map_height'],
-                    "map_name": row['map_name']
+                    "map_size_height": row['map_height']
                 }
-            )
+            if row['map_name(if available)']:
+                data['map_name'] = row['map_name(if available)']
+            floor_payload = json.dumps(data)
             #print(floor_payload)
             print(f"create Floor {row['floor_name']}")
             try:
@@ -463,7 +513,8 @@ def main():
                 sys.stdout.write(RESET)
                 print(f"Failed creating Floor on row {str(rownum)}. Attempting next row.")
                 continue
-            dfapi = dfapi.append({'id':floor_id,'name':row['floor_name'], 'type':'FLOOR', 'parent': row['building_name']}, ignore_index=True)
+            temp_df = pd.DataFrame([{'id': floor_id, 'name':row['floor_name'], 'type': 'FLOOR', 'parent':row['building_name']}])
+            dfapi = pd.concat([dfapi, temp_df], ignore_index=True) 
     
     #print(dfapi)
 
